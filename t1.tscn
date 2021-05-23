@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=2]
+
+[ext_resource path="res://new_dynamicfont2.tres" type="DynamicFont" id=1]
+
+[node name="t1" type="RichTextLabel"]
+modulate = Color( 1, 1, 1, 0.01 )
+margin_left = 20.0
+margin_right = 1220.0
+margin_bottom = 5000.0
+custom_fonts/normal_font = ExtResource( 1 )
+text = " 1"
+scroll_active = false
+__meta__ = {
+"_edit_use_anchors_": false
+}
