@@ -16,8 +16,9 @@ config/icon="res://icon.png"
 
 [display]
 
-window/size/width=1240
+window/size/width=1260
 window/size/height=800
+window/size/resizable=false
 
 [physics]
 
@@ -25,4 +26,5 @@ common/enable_pause_aware_picking=true
 
 [rendering]
 
+environment/default_clear_color=Color( 0.2, 0.2, 0.2, 1 )
 environment/default_environment="res://default_env.tres"

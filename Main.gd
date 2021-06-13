@@ -5,61 +5,86 @@ export(int, 1, 2000) var size_of_chunk = 200 setget update_size
 
 #####
 
+var update_score_on_text_change = true
+func update_autofit_option(check):
+	update_score_on_text_change = check
+	save_setting("update_score_on_text_change", update_score_on_text_change)
+
+var replace_zeroes_with = "."
+func update_zeroes_replace(c):
+	if c == " ":
+		c = " "
+	if c == "":
+		$LineEdit.text = replace_zeroes_with
+		return
+	replace_zeroes_with = c
+	save_setting("replace_zeroes_with", replace_zeroes_with)
+	display_update()
+	$LineEdit.select_all()
+func zeroes_replace_focused():
+	$LineEdit.text = ""
+func zeroes_replace_unfocused():
+	$LineEdit.text = replace_zeroes_with
+
 func update_size(_size, display = true):
 	size_of_chunk = _size
-	do_update(display)
+	full_update(display)
 	$HSlider.value = size_of_chunk
 
 var all_chunks = []
+var text_no_empty_bytes = ""
 var text_no_space = ""
 func get_text(n):
 	var start = size_of_chunk * n * 2
 	var t = text_no_space.substr(start, size_of_chunk * 2)
-	return t.replace("0", " ")
+	return t.to_upper()
 
 var size_of_text = 0
 var howmany_chunks = 0
 var num_of_text_fields = 100
 
 func do_text_update():
-	text_no_space = $main.text.replace(" ", "")
+	text_no_empty_bytes = $main.text.replace("00", "__")
+	text_no_space = text_no_empty_bytes.replace(" ", "")
 	size_of_text = text_no_space.length() / 2 # number of bytes
-	do_update()
+	if update_score_on_text_change:
+		find_best_fit()
+	else:
+		full_update()
 
-func do_update(display = true):
+func display_update():
+	var text_fields = $Node2D.get_children()
+	for n in range(0, howmany_chunks):
+		var txt = get_text(n)
+		if n < text_fields.size():
+			var t = text_fields[n]
+			t.visible = true
+			if replace_zeroes_with != "_":
+				t.text = txt.replace("_", replace_zeroes_with)
+			else:
+				t.text = txt
+			t.modulate.a = max(1.0 / float(min(howmany_chunks, num_of_text_fields)), 0.01)
+	if howmany_chunks < text_fields.size():
+		for n in range(howmany_chunks, text_fields.size()):
+			text_fields[n].visible = false
 
+func full_update(display = true):
 	if $main == null:
 		return
 	howmany_chunks = size_of_text / size_of_chunk
 
-	print("updating: " + str(size_of_text) + " long, " + str(ceil(howmany_chunks)) + " " + str(size_of_chunk) + "-byte chunks")
+#	print("updating: " + str(size_of_text) + " long, " + str(ceil(howmany_chunks)) + " " + str(size_of_chunk) + "-byte chunks")
 
 	all_chunks = []
-	var text_fields = $Node2D.get_children()
 	for n in range(0, howmany_chunks):
-		var txt = get_text(n).to_upper()
-		all_chunks.push_back(txt)
-		if display:
-			if n < text_fields.size():
-				var t = text_fields[n]
-				t.visible = true
-				t.text = txt
-				t.modulate.a = max(1.0 / float(min(howmany_chunks, num_of_text_fields)), 0.01)
-	if howmany_chunks < text_fields.size():
-		for n in range(howmany_chunks, text_fields.size()):
-			text_fields[n].visible = false
+		all_chunks.push_back(get_text(n))
 
 	var matching = 0
 	var nonzero = 0
 	var character_mapping = []
 
-#	var results_to_display_text = ""
-
 	var hex_digits_total = size_of_chunk * 2
 	for i in range(0, hex_digits_total): # go through every character (hex digit) in the chunk...
-
-#		if display:
-#			results_to_display_text += "position " + str(i) + ":\n"
 
 		# count up the matches for this index across all the chunk cycles
 		character_mapping.push_back({})
@@ -76,7 +101,7 @@ func do_update(display = true):
 		for h in character_mapping[i]:
 
 			# score (0-1) of "how many characters were not zero"
-			if h == " ":
+			if h == " " || h == "_":
 				nonz_score_at_index = 1.0 - (float(character_mapping[i][h]) / float(all_chunks.size()))
 			else:
 				matchin_score_at_index += float(pow(character_mapping[i][h], 2)) / float(character_mapping[i].size())
@@ -84,8 +109,6 @@ func do_update(display = true):
 		matching += float(matchin_score_at_index) / float(hex_digits_total)
 		nonzero += float(nonz_score_at_index) / float(hex_digits_total)
 
-#	var coeff = 2.0
-#	var corr = 1 / (coeff * pow(2.718282, -(size_of_chunk) * coeff))
 	var corr = pow((size_of_chunk), 1.4)
 
 	last_score[0] = size_of_chunk
@@ -94,19 +117,18 @@ func do_update(display = true):
 	last_score[3] = nonzero
 
 	if display:
+		display_update()
 		$Label.text = str(size_of_text) + " long, " + str(ceil(howmany_chunks)) + " " + str(size_of_chunk) + "-byte chunks"
 
-		$Label2.text = "                CURRENT\n"
-		$Label2.text += "Score:      " + str(last_score[1]) + "\n"
-		$Label2.text += "Matches: " + str(last_score[2]) + "\n"
-		$Label2.text += "Nonzero: " + str(last_score[3])
+		$Control/Label2.text = "                CURRENT\n"
+		$Control/Label2.text += "Score:      " + str(last_score[1]) + "\n"
+		$Control/Label2.text += "Matches: " + str(last_score[2]) + "\n"
+		$Control/Label2.text += "Nonzero: " + str(last_score[3])
 
-		$Label3.text = "BEST\n"
-		$Label3.text += str(best_score[1]) + "\n"
-		$Label3.text += str(best_score[2]) + "\n"
-		$Label3.text += str(best_score[3])
-
-#		$main2.text = results_to_display_text
+		$Control/Label3.text = "BEST\n"
+		$Control/Label3.text += str(best_score[1]) + "\n"
+		$Control/Label3.text += str(best_score[2]) + "\n"
+		$Control/Label3.text += str(best_score[3])
 
 
 var last_score = [1,0,0,0]
@@ -133,5 +155,22 @@ func find_best_fit():
 
 ###
 
+var config = ConfigFile.new()
+func get_setting(setting, default):
+	return config.get_value("settings", setting, default)
+func save_setting(setting, value):
+	config.set_value("settings", setting, value)
+	config.save("user://settings.cfg")
+
 func _ready():
+	$BG/dummy.free()
+	$main.text = ""
+
+	var err = config.load("user://settings.cfg")
+	if err:
+		print(err)
+	replace_zeroes_with = get_setting("replace_zeroes_with", ".")
+	update_score_on_text_change = get_setting("update_score_on_text_change", true)
+
+	$LineEdit.text = replace_zeroes_with
 	do_text_update()
